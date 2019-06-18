@@ -1,0 +1,109 @@
+#!/usr/bin/env node
+
+const shelljs = require('shelljs');
+const slash = require('slash');
+const argv = require('yargs').argv;
+const path = require('path');
+const chalk = require('chalk');
+const fs = require('fs');
+const uploadMapFile = require('../build/upload-map-file');
+const low = require('lowdb');
+const FileSync = require('lowdb/adapters/FileSync');
+const pjson = require(path.join(__dirname, './../package.json'));
+
+// -v 或者 --version 命令返回 fe-check 版本号
+if (argv.v || argv.version) {
+  console.log(pjson.version);
+  process.exit();
+}
+
+try {
+  const adapter = new FileSync(path.join(process.cwd(), 'node_modules/.fe-temp/fe-db.json'));
+  const db = low(adapter);
+  const feCheckCode = db.get('feCheckCode').value();
+
+  if (feCheckCode && feCheckCode !== 0) {
+    throw new Error('fe-check 检测未通过！');
+  }
+} catch (error) {
+  // handle error
+}
+
+let projectPath = process.cwd();
+let cmsPath = '';
+let isACT = ''; // 不能设置为 false，因为设置为 false 实际是设置为 "false" 字符串
+if (argv.act) {
+  let projectRelativePath = argv.define;
+  isACT = true; // "true" 字符串
+  cmsPath = process.cwd();
+  projectPath = path.join(cmsPath, projectRelativePath);
+  process.env.projectRelativePath = slash(projectRelativePath);
+}
+
+let isLib = '';
+if (argv.lib) {
+  isLib = 'true';
+}
+
+process.env.isACT = isACT;
+process.env.isLib = isLib;
+process.env.cmsPath = slash(cmsPath);
+process.env.projectPath = slash(projectPath);
+process.env.feBuildPath = slash(path.join(__dirname, '../'));
+process.env.staticPublicProjectPath = argv.staticPublicProjectPath || '';
+
+if (argv.d) {
+  process.env.NODE_ENV = 'development';
+  let webpackDevServerEntry;
+  let webpackDevServerRelativePath = 'webpack-dev-server/bin/webpack-dev-server.js';
+  let webpackDevConfigPath = path.resolve(__dirname, '../build/webpack.dev.js');
+  try {
+    webpackDevServerEntry = require.resolve(path.join(__dirname, '../node_modules/', webpackDevServerRelativePath));
+  } catch (e) {
+    console.log(
+      chalk.yellow(
+        '注意: 当前项目用的 fe-build 可能不是通过 npm 全局安装, 请尽快使用全局安装的方式使用 fe-build, 方便统一管理!'
+      )
+    );
+    webpackDevServerEntry = path.join(process.cwd(), '/node_modules/', webpackDevServerRelativePath);
+  }
+  const execResult = shelljs.exec(
+    `node --max_old_space_size=4096 ${slash(webpackDevServerEntry)} --progress --config ${slash(
+      webpackDevConfigPath
+    )} --host 0.0.0.0`
+  );
+  execResult.code && process.exit(1);
+} else if (argv.p) {
+  process.env.NODE_ENV = 'production'; // 通过 node 设置 NODE_ENV，可以屏蔽操作系统的差异
+  let webpackEntry;
+  let webpackRelativePath = 'webpack/bin/webpack.js';
+  let updateDeployTagPath = path.resolve(__dirname, '../build/update-deploy-tag.js');
+  let webpackProdConfigPath = path.resolve(__dirname, '../build/webpack.prod.js');
+  try {
+    webpackEntry = require.resolve(path.join(__dirname, '../node_modules/', webpackRelativePath));
+  } catch (e) {
+    console.log(
+      chalk.yellow(
+        '注意: 当前项目用的 fe-build 可能不是通过 npm 全局安装, 请尽快使用全局安装的方式使用 fe-build, 方便统一管理!'
+      )
+    );
+    webpackEntry = path.join(process.cwd(), '/node_modules/', webpackRelativePath);
+  }
+  const execResult = shelljs.exec(
+    `node ${slash(updateDeployTagPath)} && node ${slash(webpackEntry)} --progress --config ${slash(
+      webpackProdConfigPath
+    )}`
+  );
+  execResult.code && process.exit(1);
+} else if (argv.u) {
+  uploadMapFile(projectPath)
+    .then(msg => {
+      console.log(chalk.green('上传 Source Map 文件成功'));
+    })
+    .catch(err => {
+      console.log(chalk.red('上传 Source Map 文件失败'));
+      process.exit(1);
+    });
+} else {
+  console.log(chalk.red('需要指定操作参数\n举例：fe-build -d\n请联系：jialin.chen@buycoor.com'));
+}
