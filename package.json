@@ -52,7 +52,7 @@
     "replace": "^0.3.0",
     "request-promise-native": "^1.0.5",
     "sass-loader": "^6.0.3",
-    "shelljs": "^0.7.8",
+    "shelljs": "^0.8.5",
     "slash": "^1.0.0",
     "style-loader": "^0.16.1",
     "url-loader": "^0.5.8",
