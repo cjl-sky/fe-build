@@ -49,7 +49,7 @@
     "precss": "^1.4.0",
     "promise-polyfill": "^6.0.2",
     "randomstring": "^1.1.5",
-    "replace": "^0.3.0",
+    "replace": "^1.2.2",
     "request-promise-native": "^1.0.5",
     "sass-loader": "^6.0.3",
     "shelljs": "^0.7.8",
